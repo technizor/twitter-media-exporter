@@ -25,7 +25,6 @@ const accessTokenURL = 'https://api.twitter.com/oauth/access_token';
 const favoritesURL = 'https://api.twitter.com/1.1/favorites/list.json';
 
 // The code below sets the consumer key and consumer secret from your environment variables
-// To set environment variables on Mac OS X, run the export commands below from the terminal:
 const CONSUMER_KEY = process.env.CONSUMER_KEY!;
 const CONSUMER_SECRET = process.env.CONSUMER_SECRET!;
 

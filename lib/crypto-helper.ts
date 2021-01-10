@@ -1,6 +1,8 @@
 import crypto from 'crypto';
 
 const algo = 'aes-256-ctr';
+
+// The code below sets the crypto key from your environment variables
 const key = process.env.OAUTH_KEY!;
 
 const hashKey = crypto.createHash('sha256').update(String(key)).digest('base64').substr(0, 32);
