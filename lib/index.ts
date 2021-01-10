@@ -1,39 +1,33 @@
 import got from 'got';
-import stream from 'stream';
-import { promisify } from 'util';
-import fs from 'fs';
 import pLimit from 'p-limit';
 import cliProgress from 'cli-progress';
 
 import { likesRequest, generateOauthToken } from './api-helper';
 import { bsearch, descendingOrder } from './array-helper';
-import { ensureDir, readJsonFile, writeJsonFile } from './fs-helper';
+import { FileStatus, ensureDir, getFileStatus, readJsonFile, writeJsonFile, readEncryptedJsonFile, writeEncryptedJsonFile, writeFromStream } from './fs-helper';
 
 import type { FilterFunc } from './array-helper';
 import type { SimpleTweet } from './types';
 import type { OAuthAccessToken, GetFavoritesListRequest } from './api-helper';
 
-const pipeline = promisify(stream.pipeline);
-const fsp = fs.promises;
-const imageDownloadLimit = pLimit(4);
+//#region Command-line Flags
+const NUM_PARALLEL_DOWNLOADS = 4;
+const OAUTH_FILE_NAME = 'oauth.b64.enc';
+const RESPONSE_CACHE_FILE_NAME = 'response.json';
+const IMAGE_DOWNLOAD_DIR = 'img';
+//#endregion Command-line Flags
 
-const fileName = 'response.json';
-
-const progressFormatStr = '[{bar}] {percentage}% | {url} | {value}/{total}';
-
-async function getImage(url: string, fileName: string) {
-  try {
-    const stat = await fsp.stat(fileName);
-    if (stat.isFile()) return;
-  } catch (err) {
-    try {
-      await pipeline(got.stream(url), fs.createWriteStream(fileName))
-    } catch (err) {
-      console.log(`Error for url: ${url}`, err);
-    }
-  }
+//#region Constants / Flag-derivatives
+const imageDownloadLimit = pLimit(NUM_PARALLEL_DOWNLOADS);
+const PROGRESS_FMT: cliProgress.Options = {
+  format: '[{bar}] {percentage}% | {imageId} | {value}/{total}',
+};
+function imagePath(imageId: string) {
+  return `${IMAGE_DOWNLOAD_DIR}/${imageId}`;
 }
+//#endregion Constants / Flag-derivatives
 
+//#region Data Processing Functions
 function mediaTweetFlatten(tweet: any): SimpleTweet {
   return {
     id: tweet.id,
@@ -51,7 +45,7 @@ function mediaTweetFlatten(tweet: any): SimpleTweet {
       screen_name: tweet.user.screen_name,
     },
     lang: tweet.lang,
-  }
+  };
 }
 
 function isMediaTweet(tweet: SimpleTweet): boolean {
@@ -63,44 +57,70 @@ function isNotInPrior(priorList: Array<SimpleTweet>): FilterFunc<SimpleTweet> {
   return (tweet: SimpleTweet): boolean => {
     const idx = bsearch(idList, tweet.id, descendingOrder);
     return idx < 0;
+  };
+}
+//#endregion Data Processing Functions
+
+//#region FileOp Functions
+async function downloadImage(url: string, fileName: string) {
+  try {
+    await writeFromStream(fileName, got.stream(url));
+  } catch (err) {
+    console.log(`Error for url: ${url}`, err);
   }
 }
 
-export async function ensureOauth(fileName: string): Promise<OAuthAccessToken> {
-  try {
-    const stat = await fsp.stat(fileName);
-    if (stat.isDirectory()) throw `${fileName} should not be a directory`;
-    const oAuthAccessToken = await readJsonFile<OAuthAccessToken>(fileName);
-    console.log('Retrieved cached access token');
-    return oAuthAccessToken;
-  } catch (err) {
-    console.log(`Failed to retrieve cached access token: ${err}`);
-
-    const oAuthAccessToken = await generateOauthToken();
-    await writeJsonFile<OAuthAccessToken>(fileName, oAuthAccessToken);
-
-    return oAuthAccessToken;
+async function ensureOauth(fileName: string): Promise<OAuthAccessToken> {
+  const status = await getFileStatus(fileName);
+  switch (status) {
+    case FileStatus.IsFile: {
+      const oAuthAccessToken = await readEncryptedJsonFile<OAuthAccessToken>(fileName);
+      console.log('Retrieved cached access token');
+      return oAuthAccessToken;
+    }
+    case FileStatus.IsDirectory: {
+      throw new Error(`Unexpected directory found at ${fileName}.`);
+    }
+    case FileStatus.NotExists: {
+      console.log(`Failed to retrieve cached access token as the file ${fileName} does not exist.`);
+      const oAuthAccessToken = await generateOauthToken();
+      await writeEncryptedJsonFile<OAuthAccessToken>(fileName, oAuthAccessToken);
+      return oAuthAccessToken;
+    }
+    default: {
+      throw new Error(`Status of file ${fileName} is unknown.`);
+    }
   }
 }
 
 export async function cachedResponseList(fileName: string): Promise<Array<SimpleTweet>> {
-  try {
-    const stat = await fsp.stat(fileName);
-    if (stat.isDirectory()) throw `${fileName} should not be a directory`;
-    const responseList = await readJsonFile<Array<SimpleTweet>>(fileName);
-    console.log('Retrieved cached response list');
-    return responseList;
-  } catch (err) {
-    console.log(`Failed to retrieve cached response list: ${err}`);
-    return [];
+  const status = await getFileStatus(fileName);
+  switch (status) {
+    case FileStatus.IsFile: {
+      const responseList = await readJsonFile<Array<SimpleTweet>>(fileName);
+      console.log('Retrieved cached response list');
+      return responseList;
+    }
+    case FileStatus.IsDirectory: {
+      throw new Error(`Unexpected directory found at ${fileName}.`);
+    }
+    case FileStatus.NotExists: {
+      console.log(`Failed to retrieve cached response list from ${fileName}. File does not exist.`);
+      return [];
+    }
+    default: {
+      throw new Error(`Status of file ${fileName} is unknown.`);
+    }
   }
 }
+//#endregion FileOp Functions
 
+//#region Main Program
 (async () => {
   try {
-    const oAuthAccessToken = await ensureOauth('oauth.b64');
+    const oAuthAccessToken = await ensureOauth(OAUTH_FILE_NAME);
     // Make the request
-    const priorList = await cachedResponseList(fileName);
+    const priorList = await cachedResponseList(RESPONSE_CACHE_FILE_NAME);
     const params: GetFavoritesListRequest = { count: 200 };
     let tweetList: Array<SimpleTweet> = [];
 
@@ -118,19 +138,20 @@ export async function cachedResponseList(fileName: string): Promise<Array<Simple
       .map(x => x.media ? x.media.length : 0)
       .reduce((a, b) => a + b, 0);
 
-    await fsp.writeFile(fileName, JSON.stringify(tweetList, null, 2), 'utf8');
-    console.log(`Response written to '${fileName}'. ${likeCount} new liked tweets (${mediaCount} media)`)
+    await writeJsonFile(RESPONSE_CACHE_FILE_NAME, tweetList, 2);
+    console.log(`Response written to '${RESPONSE_CACHE_FILE_NAME}'. ${likeCount} new liked tweets (${mediaCount} media)`)
 
     const mediaList = newTweetList.map((x: SimpleTweet) => x.media.map(y => y.media_url).flat()).flat();
 
     if (mediaList.length > 0) {
-      await ensureDir('img');
+      await ensureDir(IMAGE_DOWNLOAD_DIR);
 
-      const bar0 = new cliProgress.MultiBar({ format: progressFormatStr }, cliProgress.Presets.shades_classic);
-      const bar1 = bar0.create(mediaList.length, 0, { url: '' });
+      const bar0 = new cliProgress.MultiBar(PROGRESS_FMT, cliProgress.Presets.shades_classic);
+      const bar1 = bar0.create(mediaList.length, 0, { imageId: '' });
       const result = mediaList.map(async url => {
-        let b = bar0.create(100, 0, { url });
-        await imageDownloadLimit(() => getImage(url, `img/${url.substring(url.lastIndexOf('/') + 1)}`));
+        let imageId = url.substring(url.lastIndexOf('/') + 1);
+        let b = bar0.create(100, 0, { imageId });
+        await imageDownloadLimit(() => downloadImage(url, imagePath(imageId)));
         b.update(100);
         b.stop();
         bar1.increment();
@@ -148,3 +169,4 @@ export async function cachedResponseList(fileName: string): Promise<Array<Simple
   }
   process.exit();
 })();
+//#endregion Main Program

@@ -110,4 +110,5 @@ dist
 out/
 img/
 oauth.b64
+oauth.b64.enc
 response.json
