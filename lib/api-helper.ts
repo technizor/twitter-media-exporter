@@ -1,7 +1,7 @@
 import got from 'got';
 import crypto_ from 'crypto';
 import qs from 'querystring';
-import OAuth, {Token} from 'oauth-1.0a';
+import OAuth, { Token } from 'oauth-1.0a';
 import rl from 'readline';
 
 const readline = rl.createInterface({
@@ -69,8 +69,8 @@ export type GetFavoritesListRequest = {
 
 // #region Private Functions
 function getAuthHeader(endpointURL: string, method: ApiMethod, token?: Token): OAuth.Header {
-  if (token) return oauth.toHeader(oauth.authorize({url: endpointURL, method}, token));
-  return oauth.toHeader(oauth.authorize({url: endpointURL, method}));
+  if (token) return oauth.toHeader(oauth.authorize({ url: endpointURL, method }, token));
+  return oauth.toHeader(oauth.authorize({ url: endpointURL, method }));
 }
 
 async function requestToken(): Promise<OAuthRequestToken> {
@@ -93,9 +93,9 @@ async function requestToken(): Promise<OAuthRequestToken> {
 }
 
 async function accessToken(oAuthRequestToken: OAuthRequestToken, verifier: string): Promise<OAuthAccessToken> {
-  const authHeader = oauth.toHeader(oauth.authorize({url: accessTokenURL, method: 'POST'}));
+  const authHeader = oauth.toHeader(oauth.authorize({ url: accessTokenURL, method: 'POST' }));
 
-  const queryParams = {oauth_verifier: verifier, oauth_token: oAuthRequestToken.oauth_token};
+  const queryParams = { oauth_verifier: verifier, oauth_token: oAuthRequestToken.oauth_token };
   const url = `${accessTokenURL}?${qs.stringify(queryParams)}`;
 
   const req = await got.post(url, {
@@ -139,7 +139,7 @@ export async function generateOauthToken(): Promise<OAuthAccessToken> {
   const oAuthRequestToken = await requestToken();
 
   // Get authorization
-  const urlParams = {oauth_token: oAuthRequestToken.oauth_token};
+  const urlParams = { oauth_token: oAuthRequestToken.oauth_token };
   const url = `${authorizeURL}?${qs.stringify(urlParams)}`;
   console.log('Please go here and authorize:', url);
   const pin: string = await input('Paste the PIN here: ');

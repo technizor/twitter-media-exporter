@@ -4,10 +4,11 @@
   "description": "Media exporter",
   "main": "index.js",
   "scripts": {
-    "test": "tsc && node out"
+    "build": "tsc && eslint lib/*.ts",
+    "test": "tsc && eslint lib/*.ts && node out"
   },
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "devDependencies": {
     "@types/cli-progress": "^3.8.0",
     "@types/p-limit": "^2.2.0",
@@ -20,6 +21,7 @@
   },
   "dependencies": {
     "cli-progress": "^3.8.2",
+    "commander": "^6.2.1",
     "crypto": "^1.0.1",
     "got": "^11.8.1",
     "needle": "^2.5.2",

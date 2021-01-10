@@ -1,8 +1,8 @@
 import fs from 'fs';
 import stream from 'stream';
-import {promisify} from 'util';
+import { promisify } from 'util';
 
-import {decrypt, encrypt} from './crypto-helper';
+import { decrypt, encrypt } from './crypto-helper';
 
 const fsp = fs.promises;
 const pipeline = promisify(stream.pipeline);
@@ -31,11 +31,11 @@ export async function ensureDir(dirName: string) {
 }
 
 export async function writeJsonFile<T>(fileName: string, data: T, space?: number): Promise<void> {
-  await fsp.writeFile(fileName, JSON.stringify(data, null, space), {encoding: 'utf8'});
+  await fsp.writeFile(fileName, JSON.stringify(data, null, space), { encoding: 'utf8' });
 }
 
 export async function readJsonFile<T>(fileName: string): Promise<T> {
-  return JSON.parse(await fsp.readFile(fileName, {encoding: 'utf8'})) as T;
+  return JSON.parse(await fsp.readFile(fileName, { encoding: 'utf8' })) as T;
 }
 
 export async function writeEncryptedJsonFile<T>(fileName: string, data: T): Promise<void> {
