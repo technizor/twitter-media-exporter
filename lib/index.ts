@@ -4,6 +4,11 @@ import { MediaExporter, MediaExporterOptions } from './media-exporter';
 
 // #region Command-line Flags
 const intArgument = (value: string): number => parseInt(value, 10);
+program.description(`Twitter Media Exporter
+  In order to use this program, three environment variables are required:
+    - OAUTH_KEY: An arbitrary key used for encrypting the cached OAuth token.
+    - CONSUMER_KEY: Your Twitter API Application Key
+    - CONSUMER_SECRET: Your Twitter API Application Secret`);
 program.option('--num_parallel_downloads <num>', 'The max number of parallel image downloads', intArgument, 4);
 program.option('--oauth_file_name <oauthFile>', 'The file path to cache an encrypted oauth access token', 'oauth.b64.enc');
 program.option('--response_cache_file_name <responseCacheFile>', 'The file path to cache the tweet response list', 'response.json');
