@@ -1,118 +1,23 @@
 import got from 'got';
-import path from 'path';
-import crypto_ from 'crypto';
-import OAuth from 'oauth-1.0a';
-import qs from 'querystring';
 import stream from 'stream';
 import { promisify } from 'util';
 import fs from 'fs';
 import cliProgress from 'cli-progress';
 
+import { likesRequest, generateOauthToken } from './api-helper';
+import { bsearch, descendingOrder } from './array-helper';
+import { ensureDir, readJsonFile, writeJsonFile } from './fs-helper';
+
 const pipeline = promisify(stream.pipeline);
 const fsp = fs.promises;
-const readline = require('readline').createInterface({
-  input: process.stdin,
-  output: process.stdout,
-});
 
-import {
-  SimpleTweet,
-  GetFavoritesListRequest,
-  OAuthAccessToken,
-  OAuthRequestToken,
-} from './types';
-
-// The code below sets the consumer key and consumer secret from your environment variables
-// To set environment variables on Mac OS X, run the export commands below from the terminal:
-const consumer_key = process.env.CONSUMER_KEY!;
-const consumer_secret = process.env.CONSUMER_SECRET!;
-
-const requestTokenURL = 'https://api.twitter.com/oauth/request_token';
-const authorizeURL = new URL('https://api.twitter.com/oauth/authorize');
-const accessTokenURL = 'https://api.twitter.com/oauth/access_token';
+import type { FilterFunc } from './array-helper';
+import type { SimpleTweet } from './types';
+import type { OAuthAccessToken, GetFavoritesListRequest} from './api-helper';
 
 const fileName = 'response.json';
 
-const oauth = new OAuth({
-  consumer: {
-    key: consumer_key,
-    secret: consumer_secret,
-  },
-  signature_method: 'HMAC-SHA1',
-  hash_function: (baseString: string, key: string) => crypto_.createHmac('sha1', key).update(baseString).digest('base64')
-});
-
-async function input(prompt: string): Promise<string> {
-  return new Promise(async (resolve, reject) => {
-    readline.question(prompt, (out: string) => {
-      readline.close();
-      resolve(out);
-    });
-  });
-}
-
 const progressFormatStr = '[{bar}] {percentage}% | {url} | {value}/{total}';
-
-async function requestToken(): Promise<OAuthRequestToken> {
-
-  const authHeader = oauth.toHeader(oauth.authorize({ url: requestTokenURL, method: 'POST' }));
-
-  const req = await got.post(requestTokenURL, {
-    json: {
-      oauth_callback: 'oob',
-    },
-    headers: {
-      Authorization: authHeader['Authorization'],
-    },
-  });
-
-  if (req.body) {
-    return qs.parse(req.body) as OAuthRequestToken;
-  } else {
-    throw new Error('Cannot get an OAuth request token');
-  }
-}
-
-async function accessToken(oAuthRequestToken: OAuthRequestToken, verifier: string): Promise<OAuthAccessToken> {
-
-  const authHeader = oauth.toHeader(oauth.authorize({ url: accessTokenURL, method: 'POST' }));
-
-  const path = `https://api.twitter.com/oauth/access_token?oauth_verifier=${verifier}&oauth_token=${oAuthRequestToken.oauth_token}`
-
-  const req = await got.post(path, {
-    headers: {
-      Authorization: authHeader["Authorization"],
-    }
-  });
-
-  if (req.body) {
-    return qs.parse(req.body) as OAuthAccessToken;
-  } else {
-    throw new Error('Cannot get an OAuth request token');
-  }
-}
-
-async function getRequest(oAuthAccessToken: OAuthAccessToken, endpointURL: string) {
-
-  const token = {
-    key: oAuthAccessToken.oauth_token,
-    secret: oAuthAccessToken.oauth_token_secret,
-  };
-
-  const authHeader = oauth.toHeader(oauth.authorize({ url: endpointURL, method: 'GET' }, token));
-
-  const req = await got(endpointURL, {
-    headers: {
-      Authorization: authHeader["Authorization"]
-    }
-  });
-
-  if (req.body) {
-    return JSON.parse(req.body);
-  } else {
-    throw new Error('Unsuccessful request');
-  }
-}
 
 async function getImage(url: string, fileName: string) {
   try {
@@ -151,88 +56,36 @@ function isMediaTweet(tweet: SimpleTweet): boolean {
   return tweet.media && tweet.media.length > 0;
 }
 
-type FilterFunc<T> = (item: T) => boolean;
-type CompFunc<T> = (a: T, b: T) => number;
-
-function bsearch<T>(list: Array<T>, item: T, comp: CompFunc<T>): number {
-  let start = 0;
-  let end = list.length;
-
-  while (start <= end) {
-    let mid = Math.floor((start + end) / 2);
-    let res = comp(item, list[mid]);
-    if (res == 0) return mid;
-    if (res < 0) {
-      start = mid + 1;
-    }
-    else {
-      end = mid - 1;
-    }
-  }
-  return -start - 1;
-}
-
-function reverseChronological(a: number, b: number): number {
-  return a - b;
-}
-
 function isNotInPrior(priorList: Array<SimpleTweet>): FilterFunc<SimpleTweet> {
   const idList = priorList.map((x: SimpleTweet) => x.id);
   return (tweet: SimpleTweet): boolean => {
-    const idx = bsearch(idList, tweet.id, reverseChronological);
+    const idx = bsearch(idList, tweet.id, descendingOrder);
     return idx < 0;
   }
 }
 
-async function likesRequest(oAuthAccessToken: OAuthAccessToken, request: GetFavoritesListRequest = {}) {
-  const query = qs.stringify(request);
-  let endpointURL = `https://api.twitter.com/1.1/favorites/list.json${query.length == 0 ? '' : `?${query}`}`;
-  return await getRequest(oAuthAccessToken, endpointURL);
-}
-
-async function ensureDir(dirName: string) {
-  try {
-    await fsp.access(dirName, fs.constants.R_OK | fs.constants.W_OK);
-    const stat = await fsp.stat(dirName);
-    if (!stat.isDirectory() && !stat.isFile()) {
-      await fsp.mkdir(dirName);
-    }
-  } catch (err) {
-    console.log(err);
-    await fsp.mkdir(dirName);
-  }
-}
-
-async function ensureOauth(fileName: string): Promise<OAuthAccessToken> {
+export async function ensureOauth(fileName: string): Promise<OAuthAccessToken> {
   try {
     const stat = await fsp.stat(fileName);
     if (stat.isDirectory()) throw `${fileName} should not be a directory`;
-    const oAuthAccessToken = JSON.parse(await fsp.readFile(fileName, { encoding: 'utf8' })) as OAuthAccessToken;
+    const oAuthAccessToken = await readJsonFile<OAuthAccessToken>(fileName);
     console.log('Retrieved cached access token');
     return oAuthAccessToken;
   } catch (err) {
     console.log(`Failed to retrieve cached access token: ${err}`);
-    // Get request token 
-    const oAuthRequestToken = await requestToken();
 
-    // Get authorization
-    authorizeURL.searchParams.append('oauth_token', oAuthRequestToken.oauth_token);
-    console.log('Please go here and authorize:', authorizeURL.href);
-    const pin: string = await input('Paste the PIN here: ');
-
-    // Get the access token
-    const oAuthAccessToken = await accessToken(oAuthRequestToken, pin.trim());
-    await fsp.writeFile(fileName, JSON.stringify(oAuthAccessToken), { encoding: 'utf8' });
+    const oAuthAccessToken = await generateOauthToken();
+    await writeJsonFile<OAuthAccessToken>(fileName, oAuthAccessToken);
 
     return oAuthAccessToken;
   }
 }
 
-async function ensureResponseList(fileName: string): Promise<Array<SimpleTweet>> {
+export async function cachedResponseList(fileName: string): Promise<Array<SimpleTweet>> {
   try {
     const stat = await fsp.stat(fileName);
     if (stat.isDirectory()) throw `${fileName} should not be a directory`;
-    const responseList = JSON.parse(await fsp.readFile(fileName, { encoding: 'utf8' })) as Array<SimpleTweet>;
+    const responseList = await readJsonFile<Array<SimpleTweet>>(fileName);
     console.log('Retrieved cached response list');
     return responseList;
   } catch (err) {
@@ -245,7 +98,7 @@ async function ensureResponseList(fileName: string): Promise<Array<SimpleTweet>>
   try {
     const oAuthAccessToken = await ensureOauth('oauth.b64');
     // Make the request
-    const priorList = await ensureResponseList(fileName);
+    const priorList = await cachedResponseList(fileName);
     const params: GetFavoritesListRequest = { count: 200 };
     let tweetList: Array<SimpleTweet> = [];
 
