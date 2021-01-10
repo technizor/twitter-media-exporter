@@ -51,6 +51,8 @@ async function input(prompt: string): Promise<string> {
   });
 }
 
+const progressFormatStr = '[{bar}] {percentage}% | {url} | {value}/{total}';
+
 async function requestToken(): Promise<OAuthRequestToken> {
 
   const authHeader = oauth.toHeader(oauth.authorize({ url: requestTokenURL, method: 'POST' }));
@@ -119,7 +121,6 @@ async function getImage(url: string, fileName: string) {
   } catch (err) {
     try {
       await pipeline(got.stream(url), fs.createWriteStream(fileName))
-      console.log(`Downloaded ${url}`);
     } catch (err) {
       console.log(`Error for url: ${url}`, err);
     }
@@ -269,14 +270,15 @@ async function ensureResponseList(fileName: string): Promise<Array<SimpleTweet>>
 
     if (mediaList.length > 0) {
       await ensureDir('img');
-      const bar1 = new cliProgress.SingleBar({}, cliProgress.Presets.shades_classic);
-      bar1.start(mediaList.length, 0);
+      const bar1 = new cliProgress.SingleBar({ format: progressFormatStr }, cliProgress.Presets.shades_classic);
+      bar1.start(mediaList.length, 0, { url: '' });
       for (let i = 0; i < mediaList.length; i++) {
         let url = mediaList[i];
+        bar1.update(i, { url });
         await getImage(url, `img/${url.substring(url.lastIndexOf('/') + 1)}`);
-        bar1.update(i + 1)
         await new Promise(resolve => setTimeout(resolve, 100));
       }
+      bar1.update(mediaList.length);
       bar1.stop();
       console.log(`Downloaded ${mediaList.length} new media files`);
     }
