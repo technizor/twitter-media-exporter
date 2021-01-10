@@ -2,22 +2,22 @@ import got from 'got';
 import pLimit from 'p-limit';
 import cliProgress from 'cli-progress';
 
-import { likesRequest, generateOauthToken } from './api-helper';
-import { bsearch, descendingOrder } from './array-helper';
-import { FileStatus, ensureDir, getFileStatus, readJsonFile, writeJsonFile, readEncryptedJsonFile, writeEncryptedJsonFile, writeFromStream } from './fs-helper';
+import {likesRequest, generateOauthToken} from './api-helper';
+import {bsearch, descendingOrder} from './array-helper';
+import {FileStatus, ensureDir, getFileStatus, readJsonFile, writeJsonFile, readEncryptedJsonFile, writeEncryptedJsonFile, writeFromStream} from './fs-helper';
 
-import type { FilterFunc } from './array-helper';
-import type { SimpleTweet } from './types';
-import type { OAuthAccessToken, GetFavoritesListRequest } from './api-helper';
+import type {FilterFunc} from './array-helper';
+import type {SimpleTweet} from './types';
+import type {OAuthAccessToken, GetFavoritesListRequest} from './api-helper';
 
-//#region Command-line Flags
+// #region Command-line Flags
 const NUM_PARALLEL_DOWNLOADS = 4;
 const OAUTH_FILE_NAME = 'oauth.b64.enc';
 const RESPONSE_CACHE_FILE_NAME = 'response.json';
 const IMAGE_DOWNLOAD_DIR = 'img';
-//#endregion Command-line Flags
+// #endregion Command-line Flags
 
-//#region Constants / Flag-derivatives
+// #region Constants / Flag-derivatives
 const imageDownloadLimit = pLimit(NUM_PARALLEL_DOWNLOADS);
 const PROGRESS_FMT: cliProgress.Options = {
   format: '[{bar}] {percentage}% | {imageId} | {value}/{total}',
@@ -25,9 +25,9 @@ const PROGRESS_FMT: cliProgress.Options = {
 function imagePath(imageId: string) {
   return `${IMAGE_DOWNLOAD_DIR}/${imageId}`;
 }
-//#endregion Constants / Flag-derivatives
+// #endregion Constants / Flag-derivatives
 
-//#region Data Processing Functions
+// #region Data Processing Functions
 function mediaTweetFlatten(tweet: any): SimpleTweet {
   return {
     id: tweet.id,
@@ -59,9 +59,9 @@ function isNotInPrior(priorList: Array<SimpleTweet>): FilterFunc<SimpleTweet> {
     return idx < 0;
   };
 }
-//#endregion Data Processing Functions
+// #endregion Data Processing Functions
 
-//#region FileOp Functions
+// #region FileOp Functions
 async function downloadImage(url: string, fileName: string) {
   try {
     await writeFromStream(fileName, got.stream(url));
@@ -113,49 +113,49 @@ export async function cachedResponseList(fileName: string): Promise<Array<Simple
     }
   }
 }
-//#endregion FileOp Functions
+// #endregion FileOp Functions
 
-//#region Main Program
+// #region Main Program
 (async () => {
   try {
     const oAuthAccessToken = await ensureOauth(OAUTH_FILE_NAME);
     // Make the request
     const priorList = await cachedResponseList(RESPONSE_CACHE_FILE_NAME);
-    const params: GetFavoritesListRequest = { count: 200 };
+    const params: GetFavoritesListRequest = {count: 200};
     let tweetList: Array<SimpleTweet> = [];
 
     let lastResponse = await likesRequest(oAuthAccessToken, params);
 
     while (lastResponse.length > 0) {
       tweetList = tweetList.concat(lastResponse.map(mediaTweetFlatten).filter(isMediaTweet));
-      let maxId = lastResponse[lastResponse.length - 1].id;
-      lastResponse = await likesRequest(oAuthAccessToken, { ...params, max_id: maxId });
+      const maxId = lastResponse[lastResponse.length - 1].id;
+      lastResponse = await likesRequest(oAuthAccessToken, {...params, max_id: maxId});
     }
 
-    let newTweetList = tweetList.filter(isNotInPrior(priorList));
-    let likeCount = newTweetList.length;
-    let mediaCount = newTweetList
-      .map(x => x.media ? x.media.length : 0)
-      .reduce((a, b) => a + b, 0);
+    const newTweetList = tweetList.filter(isNotInPrior(priorList));
+    const likeCount = newTweetList.length;
+    const mediaCount = newTweetList
+        .map((x) => x.media ? x.media.length : 0)
+        .reduce((a, b) => a + b, 0);
 
     await writeJsonFile(RESPONSE_CACHE_FILE_NAME, tweetList, 2);
-    console.log(`Response written to '${RESPONSE_CACHE_FILE_NAME}'. ${likeCount} new liked tweets (${mediaCount} media)`)
+    console.log(`Response written to '${RESPONSE_CACHE_FILE_NAME}'. ${likeCount} new liked tweets (${mediaCount} media)`);
 
-    const mediaList = newTweetList.map((x: SimpleTweet) => x.media.map(y => y.media_url).flat()).flat();
+    const mediaList = newTweetList.map((x: SimpleTweet) => x.media.map((y) => y.media_url).flat()).flat();
 
     if (mediaList.length > 0) {
       await ensureDir(IMAGE_DOWNLOAD_DIR);
 
       const bar0 = new cliProgress.MultiBar(PROGRESS_FMT, cliProgress.Presets.shades_classic);
-      const bar1 = bar0.create(mediaList.length, 0, { imageId: '' });
-      const result = mediaList.map(async url => {
-        let imageId = url.substring(url.lastIndexOf('/') + 1);
-        let b = bar0.create(100, 0, { imageId });
+      const bar1 = bar0.create(mediaList.length, 0, {imageId: ''});
+      const result = mediaList.map(async (url) => {
+        const imageId = url.substring(url.lastIndexOf('/') + 1);
+        const b = bar0.create(100, 0, {imageId});
         await imageDownloadLimit(() => downloadImage(url, imagePath(imageId)));
         b.update(100);
         b.stop();
         bar1.increment();
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise((resolve) => setTimeout(resolve, 500));
         bar0.remove(b);
       });
       await Promise.all(result);
@@ -169,4 +169,4 @@ export async function cachedResponseList(fileName: string): Promise<Array<Simple
   }
   process.exit();
 })();
-//#endregion Main Program
+// #endregion Main Program

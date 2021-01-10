@@ -1,21 +1,20 @@
-//#region Public Types
+// #region Public Types
 export type FilterFunc<T> = (item: T) => boolean;
 export type CompFunc<T> = (a: T, b: T) => number;
-//#endregion Public Types
+// #endregion Public Types
 
-//#region Public Functions
+// #region Public Functions
 export function bsearch<T>(list: Array<T>, item: T, comp: CompFunc<T>): number {
   let start = 0;
   let end = list.length;
 
   while (start <= end) {
-    let mid = Math.floor((start + end) / 2);
-    let res = comp(item, list[mid]);
+    const mid = Math.floor((start + end) / 2);
+    const res = comp(item, list[mid]);
     if (res == 0) return mid;
     if (res < 0) {
       start = mid + 1;
-    }
-    else {
+    } else {
       end = mid - 1;
     }
   }
@@ -25,4 +24,4 @@ export function bsearch<T>(list: Array<T>, item: T, comp: CompFunc<T>): number {
 export function descendingOrder(a: number, b: number): number {
   return a - b;
 }
-////#endregion Public Functions
+// //#endregion Public Functions

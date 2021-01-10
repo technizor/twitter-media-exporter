@@ -5,7 +5,7 @@ const key = process.env.OAUTH_KEY!;
 
 const hashKey = crypto.createHash('sha256').update(String(key)).digest('base64').substr(0, 32);
 
-//#region Public Functions
+// #region Public Functions
 export function encrypt(plaintext: Buffer): Buffer {
   const iv = crypto.randomBytes(16);
   const cipher = crypto.createCipheriv(algo, hashKey, iv);
@@ -18,4 +18,4 @@ export function decrypt(encrypted: Buffer): Buffer {
   const decipher = crypto.createDecipheriv(algo, hashKey, iv);
   return Buffer.concat([decipher.update(ciphertext), decipher.final()]);
 }
-//#endregion Public Functions
+// #endregion Public Functions

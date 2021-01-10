@@ -1,7 +1,7 @@
 import got from 'got';
 import crypto_ from 'crypto';
 import qs from 'querystring';
-import OAuth, { Token } from 'oauth-1.0a';
+import OAuth, {Token} from 'oauth-1.0a';
 import rl from 'readline';
 
 const readline = rl.createInterface({
@@ -10,7 +10,7 @@ const readline = rl.createInterface({
 });
 
 async function input(prompt: string): Promise<string> {
-  return new Promise(async (resolve, reject) => {
+  return new Promise(async (resolve) => {
     readline.question(prompt, (out: string) => {
       readline.close();
       resolve(out);
@@ -22,27 +22,28 @@ const requestTokenURL = 'https://api.twitter.com/oauth/request_token';
 const authorizeURL = 'https://api.twitter.com/oauth/authorize';
 const accessTokenURL = 'https://api.twitter.com/oauth/access_token';
 
-const favoritesURL = 'https://api.twitter.com/1.1/favorites/list.json'
+const favoritesURL = 'https://api.twitter.com/1.1/favorites/list.json';
 
 // The code below sets the consumer key and consumer secret from your environment variables
 // To set environment variables on Mac OS X, run the export commands below from the terminal:
-const consumer_key = process.env.CONSUMER_KEY!;
-const consumer_secret = process.env.CONSUMER_SECRET!;
+const CONSUMER_KEY = process.env.CONSUMER_KEY!;
+const CONSUMER_SECRET = process.env.CONSUMER_SECRET!;
 
 const oauth = new OAuth({
   consumer: {
-    key: consumer_key,
-    secret: consumer_secret,
+    key: CONSUMER_KEY,
+    secret: CONSUMER_SECRET,
   },
   signature_method: 'HMAC-SHA1',
-  hash_function: (baseString: string, key: string) => crypto_.createHmac('sha1', key).update(baseString).digest('base64')
+  hash_function: (baseString: string, key: string) => crypto_.createHmac('sha1', key).update(baseString).digest('base64'),
 });
 
-//#region Private Types
+// #region Private Types
 type ApiMethod = 'GET' | 'POST';
 
-//#endregion Private Types
-//#region Public Types
+// #endregion Private Types
+// #region Public Types
+/* eslint-disable camelcase */
 export type OAuthAccessToken = {
   oauth_token: string,
   oauth_token_secret: string,
@@ -64,12 +65,13 @@ export type GetFavoritesListRequest = {
   max_id?: number,
   include_entities?: boolean,
 }
-//#endregion Public Types
+/* eslint-enable camelcase */
+// #endregion Public Types
 
-//#region Private Functions
+// #region Private Functions
 function getAuthHeader(endpointURL: string, method: ApiMethod, token?: Token): OAuth.Header {
-  if (token) return oauth.toHeader(oauth.authorize({ url: endpointURL, method }, token));
-  return oauth.toHeader(oauth.authorize({ url: endpointURL, method }));
+  if (token) return oauth.toHeader(oauth.authorize({url: endpointURL, method}, token));
+  return oauth.toHeader(oauth.authorize({url: endpointURL, method}));
 }
 
 async function requestToken(): Promise<OAuthRequestToken> {
@@ -92,16 +94,15 @@ async function requestToken(): Promise<OAuthRequestToken> {
 }
 
 async function accessToken(oAuthRequestToken: OAuthRequestToken, verifier: string): Promise<OAuthAccessToken> {
+  const authHeader = oauth.toHeader(oauth.authorize({url: accessTokenURL, method: 'POST'}));
 
-  const authHeader = oauth.toHeader(oauth.authorize({ url: accessTokenURL, method: 'POST' }));
-
-  const queryParams = { oauth_verifier: verifier, oauth_token: oAuthRequestToken.oauth_token };
+  const queryParams = {oauth_verifier: verifier, oauth_token: oAuthRequestToken.oauth_token};
   const url = `${accessTokenURL}?${qs.stringify(queryParams)}`;
 
   const req = await got.post(url, {
     headers: {
-      Authorization: authHeader["Authorization"],
-    }
+      Authorization: authHeader['Authorization'],
+    },
   });
 
   if (req.body) {
@@ -112,7 +113,6 @@ async function accessToken(oAuthRequestToken: OAuthRequestToken, verifier: strin
 }
 
 async function getRequest<T>(oAuthAccessToken: OAuthAccessToken, endpointURL: string): Promise<T> {
-
   const token = {
     key: oAuthAccessToken.oauth_token,
     secret: oAuthAccessToken.oauth_token_secret,
@@ -122,8 +122,8 @@ async function getRequest<T>(oAuthAccessToken: OAuthAccessToken, endpointURL: st
 
   const req = await got(endpointURL, {
     headers: {
-      Authorization: authHeader["Authorization"]
-    }
+      Authorization: authHeader['Authorization'],
+    },
   });
 
   if (req.body) {
@@ -132,15 +132,15 @@ async function getRequest<T>(oAuthAccessToken: OAuthAccessToken, endpointURL: st
     throw new Error('Unsuccessful request');
   }
 }
-//#endregion Private Functions
+// #endregion Private Functions
 
-//#region Public Functions
+// #region Public Functions
 export async function generateOauthToken(): Promise<OAuthAccessToken> {
-  // Get request token 
+  // Get request token
   const oAuthRequestToken = await requestToken();
 
   // Get authorization
-  const urlParams = { oauth_token: oAuthRequestToken.oauth_token };
+  const urlParams = {oauth_token: oAuthRequestToken.oauth_token};
   const url = `${authorizeURL}?${qs.stringify(urlParams)}`;
   console.log('Please go here and authorize:', url);
   const pin: string = await input('Paste the PIN here: ');
@@ -154,4 +154,4 @@ export function likesRequest(oAuthAccessToken: OAuthAccessToken, request: GetFav
   const endpointURL = `${favoritesURL}${query.length == 0 ? '' : `?${query}`}`;
   return getRequest<Array<any>>(oAuthAccessToken, endpointURL);
 }
-//#endregion Public Functions
+// #endregion Public Functions

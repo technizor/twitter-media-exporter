@@ -1,4 +1,4 @@
-/* eslint camelcase off */
+/* eslint-disable camelcase */
 export type TweetMedia = {
   id: number,
   media_url: string,
@@ -20,3 +20,4 @@ export type SimpleTweet = {
   user: TwitterUser,
   lang: string,
 }
+/* eslint-enable camelcase */
