@@ -9,6 +9,8 @@ If you are using **VS Code Remote - Containers** extension, set the appropriate 
 
 Set an arbitrary string value for caching the user's OAuth token inside the container environment.
 
+An example of a `devcontainer.env` file with unset environment variables is included `.devcontainer/example-devcontainer.env`.
+
 ### Environment Variables (.devcontainer/devcontainer.env)
 ```
 CONSUMER_KEY=<Twitter App API Key>
