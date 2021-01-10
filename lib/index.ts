@@ -2,18 +2,20 @@ import got from 'got';
 import stream from 'stream';
 import { promisify } from 'util';
 import fs from 'fs';
+import pLimit from 'p-limit';
 import cliProgress from 'cli-progress';
 
 import { likesRequest, generateOauthToken } from './api-helper';
 import { bsearch, descendingOrder } from './array-helper';
 import { ensureDir, readJsonFile, writeJsonFile } from './fs-helper';
 
-const pipeline = promisify(stream.pipeline);
-const fsp = fs.promises;
-
 import type { FilterFunc } from './array-helper';
 import type { SimpleTweet } from './types';
-import type { OAuthAccessToken, GetFavoritesListRequest} from './api-helper';
+import type { OAuthAccessToken, GetFavoritesListRequest } from './api-helper';
+
+const pipeline = promisify(stream.pipeline);
+const fsp = fs.promises;
+const imageDownloadLimit = pLimit(4);
 
 const fileName = 'response.json';
 
@@ -123,16 +125,21 @@ export async function cachedResponseList(fileName: string): Promise<Array<Simple
 
     if (mediaList.length > 0) {
       await ensureDir('img');
-      const bar1 = new cliProgress.SingleBar({ format: progressFormatStr }, cliProgress.Presets.shades_classic);
-      bar1.start(mediaList.length, 0, { url: '' });
-      for (let i = 0; i < mediaList.length; i++) {
-        let url = mediaList[i];
-        bar1.update(i, { url });
-        await getImage(url, `img/${url.substring(url.lastIndexOf('/') + 1)}`);
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
-      bar1.update(mediaList.length);
+
+      const bar0 = new cliProgress.MultiBar({ format: progressFormatStr }, cliProgress.Presets.shades_classic);
+      const bar1 = bar0.create(mediaList.length, 0, { url: '' });
+      const result = mediaList.map(async url => {
+        let b = bar0.create(100, 0, { url });
+        await imageDownloadLimit(() => getImage(url, `img/${url.substring(url.lastIndexOf('/') + 1)}`));
+        b.update(100);
+        b.stop();
+        bar1.increment();
+        await new Promise(resolve => setTimeout(resolve, 500));
+        bar0.remove(b);
+      });
+      await Promise.all(result);
       bar1.stop();
+      bar0.stop();
       console.log(`Downloaded ${mediaList.length} new media files`);
     }
   } catch (e) {
