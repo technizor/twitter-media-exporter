@@ -1,6 +1,6 @@
 {
   "name": "@technizor/twitter-media-exporter",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Twitter Media Exporter",
   "main": "out/media-exporter.js",
   "types": "out/media-exporter.d.ts",
@@ -14,7 +14,11 @@
     "test": "tsc && eslint lib/*.ts && node out"
   },
   "prepublish": "tsc",
-  "author": "technizor",
+  "author": {
+    "name": "Sherman Ying",
+    "email": "fishermanying@gmail.com",
+    "url": "https://github.com/technizor"
+  },
   "license": "MIT",
   "devDependencies": {
     "@types/cli-progress": "^3.8.0",
@@ -31,7 +35,6 @@
     "commander": "^6.2.1",
     "crypto": "^1.0.1",
     "got": "^11.8.1",
-    "needle": "^2.5.2",
     "oauth-1.0a": "^2.2.6",
     "p-limit": "^3.1.0",
     "querystring": "^0.2.0",
