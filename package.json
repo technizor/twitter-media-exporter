@@ -1,13 +1,20 @@
 {
   "name": "@technizor/twitter-media-exporter",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Twitter Media Exporter",
-  "main": "index.js",
+  "main": "out/media-exporter.js",
+  "types": "out/media-exporter.d.ts",
+  "homepage": "https://github.com/technizor/twitter-media-exporter",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/technizor/twitter-media-exporter.git"
+  },
   "scripts": {
     "build": "tsc && eslint lib/*.ts",
     "test": "tsc && eslint lib/*.ts && node out"
   },
-  "author": "",
+  "prepublish": "tsc",
+  "author": "technizor",
   "license": "MIT",
   "devDependencies": {
     "@types/cli-progress": "^3.8.0",
