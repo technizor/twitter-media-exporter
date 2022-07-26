@@ -124,20 +124,37 @@ export class MediaExporter {
     return `${this.options.imageDownloadDir}/${imageId}`;
   }
 
-  async run() {
+  async run(before: number) {
     const oAuthAccessToken = await ensureOauth(this.options.oauthFileName);
     // Make the request
     const priorList = await cachedResponseList(this.options.responseCacheFileName);
-    const params: GetFavoritesListRequest = { count: 200 };
+    const params = { count: 200 } as GetFavoritesListRequest;
+    if (before != -1) {
+      params.max_id = before;
+    }
     let tweetList: Array<SimpleTweet> = [];
 
-    let lastResponse = await likesRequest(oAuthAccessToken, params);
-
-    while (lastResponse.length > 0) {
-      tweetList = tweetList.concat(lastResponse.map(mediaTweetFlatten).filter(isMediaTweet));
-      const maxId = lastResponse[lastResponse.length - 1].id;
-      lastResponse = await likesRequest(oAuthAccessToken, { ...params, max_id: maxId });
+    let lastResponse = [] as any[];
+    try {
+      lastResponse = await likesRequest(oAuthAccessToken, params);
+    } catch (error) {
+      console.log(`Error occurred retrieving entire list of likes: ${error}\nTry again later`);
+      return;
     }
+    let numApiRequests = 0;
+    let maxId = -1;
+    while (lastResponse.length > 0) {
+      numApiRequests++;
+      tweetList = tweetList.concat(lastResponse.map(mediaTweetFlatten).filter(isMediaTweet));
+      maxId = lastResponse[lastResponse.length - 1].id;
+      try {
+        lastResponse = await likesRequest(oAuthAccessToken, { ...params, max_id: maxId });
+      } catch (error) {
+        console.log(`Error occurred retrieving entire list of likes: ${error}\nResume from id ${maxId}`);
+        break;
+      }
+    }
+    console.log(`Performed ${numApiRequests} API requests`);
 
     const newTweetList = tweetList.filter(isNotInPrior(priorList));
     const likeCount = newTweetList.length;

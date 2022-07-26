@@ -13,6 +13,7 @@ program.option('--num_parallel_downloads <num>', 'The max number of parallel ima
 program.option('--oauth_file_name <oauthFile>', 'The file path to cache an encrypted oauth access token', 'oauth.b64.enc');
 program.option('--response_cache_file_name <responseCacheFile>', 'The file path to cache the tweet response list', 'response.json');
 program.option('--image_out_dir <imgOutDir>', 'The directory path to download images to', 'img');
+program.option('--before <num>', 'Restart likes scan from tweets before the specified ID', intArgument, -1);
 program.parse(process.argv);
 // #endregion Command-line Flags
 
@@ -26,7 +27,7 @@ const exporterOptions: MediaExporterOptions = {
 const exporter = new MediaExporter(exporterOptions);
 (async () => {
   try {
-    await exporter.run();
+    await exporter.run(program.before);
   } catch (e) {
     console.log(e);
     process.exit(-1);
